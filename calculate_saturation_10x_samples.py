@@ -15,7 +15,7 @@ import numpy as np
 import argparse
 
 __author__ = "Jasper Janssens"
-__contributors__ = "Swan Floc’Hlay, Maxime De Waegeneer, Gert Hulselmans"
+__contributors__ = "Swann Floc’Hlay, Maxime De Waegeneer, Gert Hulselmans"
 __version__ = "v0.2.0"
 __contact__ = "jasper.janssens@kuleuven.be"
 
@@ -151,6 +151,7 @@ def plot_saturation_curve(
     percentages: List[float],
     assay_type: str,
     output_path: Path,
+    multiome: bool,
 ):
     """
     Plot saturation curve and returns pd.DataFrame, reeds needed and saturation percentage along with mean reads per cell (X coefficient)
@@ -218,7 +219,12 @@ def plot_saturation_curve(
             wrap=True,
         )
 
-    saturation_pct = np.max(y_data) / model_fit[0]
+    # sf. : y_data is already a fraction of duplicate
+    if not multiome :
+        saturation_pct = np.max(y_data) / model_fit[0]
+    elif multiome :
+        saturation_pct = np.max(y_data)
+    
     mean_reads_per_cell = drawline(
         perc=saturation_pct,
         coef=model_fit,
@@ -322,6 +328,13 @@ def main():
         help='Comma separated list of decimal percentages to predict. Default: "0.5,0.75"',
         default="0.5,0.75",
     )
+    parser.add_argument(
+        "--multiome",
+        dest="multiome",
+        type=bool,
+        help='Boolean indicating if data is from multiome (cellranger-arc) sample',
+        default=False,
+    )
     parser.add_argument("--version", action="version", version=f"{__version__}")
 
     args = parser.parse_args()
@@ -383,30 +396,72 @@ def main():
         output_path = Path(args.output) / f"{project_name}_complexity.png"
 
     elif args.assay_type == "RNA":
-        summary_info_path = (
-            Path(args.tenx_dir)
-            / "SC_RNA_COUNTER_CS"
-            / "SC_RNA_COUNTER"
-            / "SUMMARIZE_REPORTS"
-            / "fork0"
-            / "files"
-            / "metrics_summary_csv.csv"
-        )
-        if not summary_info_path.exists():
-            raise FileNotFoundError(
-                f"The summary info file of the given 10x {args.assay_type} folder {args.tenx_dir} does not exist."
+        if args.multiome :
+            complexity_info_dir = (
+                Path(args.tenx_dir)
+                / "SC_ATAC_GEX_COUNTER_CS"
+                / "SC_ATAC_GEX_COUNTER"
+                / "MERGE_RNA_ATAC_DATA"
+                / "fork0"
             )
-        summary = pd.read_csv(summary_info_path)
-        num_cells = int(re.sub(",", "", summary["Estimated Number of Cells"][0]))
-        complexity_info_path = (
-            Path(args.tenx_dir)
-            / "SC_RNA_COUNTER_CS"
-            / "SC_RNA_COUNTER"
-            / "SUMMARIZE_REPORTS"
-            / "fork0"
-            / "files"
-            / "metrics_summary_json.json"
-        )
+            if not complexity_info_dir.exists():
+                raise FileNotFoundError(
+                    f"The given 10x {args.assay_type} folder {args.tenx_dir} does not exits."
+                )
+
+            a = os.scandir(path=complexity_info_dir)
+            file_path = [x.name for x in a if x.name.startswith("join-")]
+            summary_info_path = (
+                Path(args.tenx_dir)
+                / "SC_ATAC_GEX_COUNTER_CS"
+                / "SC_ATAC_GEX_COUNTER"
+                / "MERGE_RNA_ATAC_DATA"
+                / "fork0"
+                / file_path[0] 
+                / "files"
+                / "summary_csv_cs.csv"
+            )
+            if not summary_info_path.exists():
+                raise FileNotFoundError(
+                    f"The summary info file of the given 10x {args.assay_type} folder {args.tenx_dir} does not exist."
+                )
+            summary = pd.read_csv(summary_info_path)
+            num_cells = int(re.sub(",", "", str(summary["Estimated number of cells"][0])))
+            complexity_info_path = (
+                Path(args.tenx_dir)
+                / "SC_ATAC_GEX_COUNTER_CS"
+                / "SC_ATAC_GEX_COUNTER"
+                / "GEX_SUMMARIZE_REPORTS"
+                / "fork0"
+                / "files"
+                / "metrics_summary_json.json"
+            )
+
+        elif not args.multiome :
+            summary_info_path = (
+                Path(args.tenx_dir)
+                / "SC_RNA_COUNTER_CS"
+                / "SC_RNA_COUNTER"
+                / "SUMMARIZE_REPORTS"
+                / "fork0"
+                / "files"
+                / "metrics_summary_csv.csv"
+            )
+            if not summary_info_path.exists():
+                raise FileNotFoundError(
+                    f"The summary info file of the given 10x {args.assay_type} folder {args.tenx_dir} does not exist."
+                )
+            summary = pd.read_csv(summary_info_path)
+            num_cells = int(re.sub(",", "", summary["Estimated Number of Cells"][0]))
+            complexity_info_path = (
+                Path(args.tenx_dir)
+                / "SC_RNA_COUNTER_CS"
+                / "SC_RNA_COUNTER"
+                / "SUMMARIZE_REPORTS"
+                / "fork0"
+                / "files"
+                / "metrics_summary_json.json"
+            )
 
         # Create output path.
         project_name = "RNA"  # needs to be updated
@@ -429,6 +484,7 @@ def main():
         percentages=percentages,
         assay_type=args.assay_type,
         output_path=output_path,
+        multiome=args.multiome,
     )
 
     # Initialize summary.
