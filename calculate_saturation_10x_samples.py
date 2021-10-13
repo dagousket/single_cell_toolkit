@@ -28,6 +28,7 @@ def prepare_data(complexity_info_path: Path, assay_type):
     # Open complexity file
     with open(complexity_info_path) as complexity_info_fh:
         complexity_info = json.load(complexity_info_fh)
+    complexity_info = pd.json_normalize(complexity_info)
     complexity_info_df = pd.DataFrame(complexity_info)
 
     if assay_type == "ATAC":
