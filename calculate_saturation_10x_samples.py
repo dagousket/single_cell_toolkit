@@ -336,6 +336,13 @@ def main():
         help='Boolean indicating if data is from multiome (cellranger-arc) sample',
         default=False,
     )
+    parser.add_argument(
+        "--name",
+        dest="name",
+        type=str,
+        help='Project name used for naming outputs',
+        default="RNA",
+    )
     parser.add_argument("--version", action="version", version=f"{__version__}")
 
     args = parser.parse_args()
@@ -465,7 +472,7 @@ def main():
             )
 
         # Create output path.
-        project_name = "RNA"  # needs to be updated
+        project_name = args.name #"RNA"  # needs to be updated
         output_path = Path(args.output) / f"{project_name}_saturation.png"
 
     x_data, y_data = prepare_data(
